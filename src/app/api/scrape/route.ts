@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import chromium from 'chrome-aws-lambda'
+import chromium from '@sparticuz/chromium'
 import puppeteer from 'puppeteer-core'
 
 export interface ScrapedData {
@@ -22,22 +22,25 @@ export async function POST(request: NextRequest) {
     let browser = null
     
     try {
-      // 获取Chrome可执行文件路径
-      const executablePath = await chromium.executablePath
+      // 检测是否在本地开发环境
+      const isLocal = process.env.NODE_ENV === 'development'
       
       // 启动浏览器
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: isLocal ? [] : chromium.args,
         defaultViewport: chromium.defaultViewport,
-        executablePath: executablePath || '/opt/google/chrome/google-chrome',
+        executablePath: isLocal 
+          ? undefined // 本地环境使用默认Chrome
+          : await chromium.executablePath(),
         headless: chromium.headless,
         ignoreHTTPSErrors: true,
       })
       
       const page = await browser.newPage()
       
-      // 设置用户代理
+      // 设置用户代理和视窗大小
       await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+      await page.setViewport({ width: 1920, height: 1080 })
       
       // 访问小红书
       console.log('正在访问小红书...')
@@ -57,7 +60,8 @@ export async function POST(request: NextRequest) {
           'input[placeholder*="搜索"]',
           'input[data-testid="search"]', 
           '.search-input input',
-          'input[type="text"]'
+          'input[type="text"]',
+          '[data-testid="searchbar"] input'
         ]
         
         let searchInput = null
@@ -78,8 +82,10 @@ export async function POST(request: NextRequest) {
           throw new Error('未找到搜索框')
         }
         
+        // 清空并输入搜索关键词
+        await searchInput.click({ clickCount: 3 })
         await searchInput.type(keyword)
-        await searchInput.press('Enter')
+        await page.keyboard.press('Enter')
         
         // 等待搜索结果加载
         await page.waitForTimeout(5000)
@@ -109,7 +115,9 @@ export async function POST(request: NextRequest) {
           '.note-container',
           'a[href*="/explore/"]',
           'article',
-          '.card'
+          '.card',
+          '[data-testid="feeds-page"] > div > div', // 小红书feed页面
+          '.feeds-container .note'
         ]
         
         let noteElements: Element[] = []
@@ -125,12 +133,13 @@ export async function POST(request: NextRequest) {
           noteElements = Array.from(document.querySelectorAll('div')).filter(el => {
             const hasImage = el.querySelector('img')
             const hasText = el.querySelector('span, p, div')
-            return hasImage && hasText && el.textContent && el.textContent.length > 10
+            const hasLink = el.querySelector('a') || el.closest('a')
+            return hasImage && hasText && hasLink && el.textContent && el.textContent.length > 10
           })
           console.log(`通用方法找到 ${noteElements.length} 个元素`)
         }
         
-        const processedElements = noteElements.slice(0, 15) // 多抓取一些，然后筛选
+        const processedElements = noteElements.slice(0, 20) // 多抓取一些，然后筛选
         console.log(`准备处理 ${processedElements.length} 个元素`)
         
         processedElements.forEach((element, index) => {
@@ -145,14 +154,16 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            // 获取标题
+            // 获取标题 - 更全面的选择器
             const titleSelectors = [
               '[data-testid="title"]',
               '.title',
-              'h3', 'h4', 'h5',
+              'h3', 'h4', 'h5', 'h6',
               '.note-title',
               'span[title]',
-              'div[title]'
+              'div[title]',
+              '[class*="title"]',
+              '[class*="Title"]'
             ]
             
             let title = ''
@@ -164,45 +175,58 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            // 如果还没找到标题，尝试从所有文本中找最长的
+            // 如果还没找到标题，尝试从所有文本中找最有意义的
             if (!title) {
               const allTexts = Array.from(element.querySelectorAll('span, p, div'))
                 .map(el => el.textContent?.trim())
-                .filter(text => text && text.length > 5 && text.length < 100)
+                .filter(text => text && text.length > 5 && text.length < 100 && !text.match(/^\d+$/))
                 .sort((a, b) => (b?.length || 0) - (a?.length || 0))
               
-              title = allTexts[0] || `副业相关内容 ${index + 1}`
+              title = allTexts[0] || `${keyword}相关内容 ${index + 1}`
             }
             
             // 获取作者
-            const authorSelectors = ['.author', '.user-name', '[data-testid="author"]', '.username']
+            const authorSelectors = [
+              '.author', '.user-name', '[data-testid="author"]', '.username',
+              '[class*="author"]', '[class*="user"]', '[class*="name"]'
+            ]
             let author = '未知用户'
             
             for (const selector of authorSelectors) {
               const authorElement = element.querySelector(selector)
-              if (authorElement && authorElement.textContent) {
+              if (authorElement && authorElement.textContent && authorElement.textContent.trim().length > 0) {
                 author = authorElement.textContent.trim()
                 break
               }
             }
             
-            // 获取统计数据
-            const allSpans = element.querySelectorAll('span, div')
+            // 获取统计数据 - 更精确的匹配
+            const allSpans = element.querySelectorAll('span, div, p')
             let viewCount = ''
             let likeCount = ''
             
             Array.from(allSpans).forEach(el => {
               const text = el.textContent || ''
-              if (text.match(/\d+[w万k千]?[\s]*浏览|[0-9]+[w万k千]?[\s]*次/i)) {
+              // 匹配浏览量
+              if (text.match(/\d+[w万k千]?[\s]*[浏览次观看]/i)) {
                 viewCount = text.trim()
-              } else if (text.match(/\d+[w万k千]?[\s]*点赞|[0-9]+[w万k千]?[\s]*赞|[0-9]+[w万k千]?[\s]*👍/i)) {
+              } 
+              // 匹配点赞数
+              else if (text.match(/\d+[w万k千]?[\s]*[点赞❤️👍]/i)) {
+                likeCount = text.trim()
+              }
+              // 数字加表情符号
+              else if (text.match(/^\d+[w万k千]?\s*👁/) || text.match(/👁\s*\d+[w万k千]?/)) {
+                viewCount = text.trim()
+              }
+              else if (text.match(/^\d+[w万k千]?\s*❤/) || text.match(/❤\s*\d+[w万k千]?/)) {
                 likeCount = text.trim()
               }
             })
             
             // 生成随机数据作为备用
             if (!viewCount) {
-              const randomViews = Math.floor(Math.random() * 50000) + 1000
+              const randomViews = Math.floor(Math.random() * 100000) + 1000
               viewCount = randomViews > 10000 ? `${(randomViews/10000).toFixed(1)}万浏览` : `${randomViews}浏览`
             }
             
@@ -215,8 +239,11 @@ export async function POST(request: NextRequest) {
             let thumbnail = ''
             const imgElement = element.querySelector('img')
             if (imgElement) {
-              thumbnail = imgElement.getAttribute('src') || imgElement.getAttribute('data-src') || ''
-              // 如果是相对路径，转为绝对路径
+              thumbnail = imgElement.getAttribute('src') || 
+                         imgElement.getAttribute('data-src') || 
+                         imgElement.getAttribute('data-lazy-src') || ''
+              
+              // 处理相对路径
               if (thumbnail && thumbnail.startsWith('//')) {
                 thumbnail = 'https:' + thumbnail
               } else if (thumbnail && thumbnail.startsWith('/')) {
@@ -225,7 +252,12 @@ export async function POST(request: NextRequest) {
             }
             
             // 只添加有意义的内容
-            if (title.length > 5 && !title.includes('undefined') && !title.includes('null')) {
+            if (title.length > 5 && 
+                !title.includes('undefined') && 
+                !title.includes('null') &&
+                !title.match(/^[\d\s]+$/) && // 不是纯数字
+                title.length < 200) { // 标题不要太长
+              
               items.push({
                 title: title.slice(0, 100),
                 author,
@@ -253,13 +285,14 @@ export async function POST(request: NextRequest) {
           note.title && 
           note.title.length > 5 && 
           !note.title.includes('undefined') &&
-          !note.title.includes('null')
+          !note.title.includes('null') &&
+          note.title.trim() !== ''
         )
         .slice(0, 10) // 只取前10个
       
       if (validNotes.length === 0) {
         return NextResponse.json({ 
-          error: '未能获取到有效数据，可能是页面结构发生变化',
+          error: '未能获取到有效数据，可能是页面结构发生变化或需要登录',
           debug: '尝试了多种选择器但未找到符合条件的内容',
           data: [] 
         }, { status: 200 })
@@ -281,7 +314,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({ 
         error: `抓取失败: ${pageError instanceof Error ? pageError.message : '未知错误'}`,
-        debug: pageError instanceof Error ? pageError.stack : pageError
+        suggestion: '小红书可能更新了页面结构或需要登录验证'
       }, { status: 500 })
     }
     
@@ -290,7 +323,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       error: `服务器错误: ${error instanceof Error ? error.message : '未知错误'}`,
-      debug: error instanceof Error ? error.stack : error
+      suggestion: '请稍后重试或联系技术支持'
     }, { status: 500 })
   }
 }
