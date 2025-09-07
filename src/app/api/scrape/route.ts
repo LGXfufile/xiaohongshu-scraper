@@ -28,11 +28,11 @@ export async function POST(request: NextRequest) {
       // 启动浏览器
       browser = await puppeteer.launch({
         args: isLocal ? [] : chromium.args,
-        defaultViewport: chromium.defaultViewport,
+        defaultViewport: null,
         executablePath: isLocal 
           ? undefined // 本地环境使用默认Chrome
           : await chromium.executablePath(),
-        headless: chromium.headless,
+        headless: true,
         ignoreHTTPSErrors: true,
       })
       
