@@ -1,103 +1,214 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from 'react'
+import { ScrapedData } from './api/scrape/route'
+
+interface ApiResponse {
+  success?: boolean
+  data: ScrapedData[]
+  total?: number
+  keyword?: string
+  error?: string
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [keyword, setKeyword] = useState('副业')
+  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState<ScrapedData[]>([])
+  const [error, setError] = useState('')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSearch = async () => {
+    if (!keyword.trim()) return
+    
+    setLoading(true)
+    setError('')
+    setData([])
+    
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keyword: keyword.trim() }),
+      })
+      
+      const result: ApiResponse = await response.json()
+      
+      if (result.error) {
+        setError(result.error)
+      } else {
+        setData(result.data || [])
+      }
+    } catch (err) {
+      setError('网络请求失败，请检查连接后重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 -left-64 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-3/4 -right-32 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
+      </div>
+      
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        {/* 头部 */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
+            小红书数据洞察
+          </h1>
+          <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+            智能抓取小红书热门内容，按浏览量排序为您呈现最具价值的副业信息
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* 搜索区域 */}
+        <div className="max-w-2xl mx-auto mb-12">
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder="输入搜索关键词..."
+                  className="w-full px-6 py-4 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all duration-300"
+                />
+              </div>
+              <button
+                onClick={handleSearch}
+                disabled={loading}
+                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    抓取中...
+                  </div>
+                ) : (
+                  '开始抓取'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 错误提示 */}
+        {error && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 text-red-400">⚠️</div>
+                <p className="text-red-300">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 数据展示 */}
+        {data.length > 0 && (
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold text-white">
+                搜索结果 <span className="text-purple-400">({data.length}条)</span>
+              </h2>
+              <div className="text-sm text-slate-400">
+                按浏览量排序显示
+              </div>
+            </div>
+            
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {data.map((item, index) => (
+                <div
+                  key={index}
+                  className="group bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-white/20 transition-all duration-300 transform hover:-translate-y-1"
+                >
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-white text-lg mb-2 line-clamp-2 leading-tight">
+                        {item.title}
+                      </h3>
+                      <p className="text-slate-300 text-sm mb-3">
+                        作者: {item.author}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {item.thumbnail && (
+                    <div className="mb-4 rounded-lg overflow-hidden">
+                      <img 
+                        src={item.thumbnail} 
+                        alt={item.title}
+                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <span className="text-blue-400 text-sm font-medium">
+                        👁️ {item.viewCount}
+                      </span>
+                      <span className="text-pink-400 text-sm font-medium">
+                        ❤️ {item.likeCount}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors duration-200"
+                  >
+                    查看原文 
+                    <span className="transform group-hover:translate-x-1 transition-transform duration-200">→</span>
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 使用说明 */}
+        {!loading && data.length === 0 && !error && (
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
+              <div className="text-6xl mb-6">🔍</div>
+              <h3 className="text-xl font-semibold text-white mb-4">开始您的数据探索之旅</h3>
+              <p className="text-slate-400 mb-6">
+                输入关键词，系统将自动抓取小红书相关内容并按热度排序，为您呈现最有价值的信息。
+              </p>
+              <div className="grid sm:grid-cols-3 gap-4 text-sm">
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <div className="text-purple-400 font-semibold mb-2">🎯 智能抓取</div>
+                  <div className="text-slate-400">自动化浏览器技术</div>
+                </div>
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <div className="text-blue-400 font-semibold mb-2">📊 数据分析</div>
+                  <div className="text-slate-400">按浏览量智能排序</div>
+                </div>
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <div className="text-pink-400 font-semibold mb-2">⚡ 实时更新</div>
+                  <div className="text-slate-400">获取最新热门内容</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
