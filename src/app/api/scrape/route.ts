@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
           ? undefined // 本地环境使用默认Chrome
           : await chromium.executablePath(),
         headless: true,
-        ignoreHTTPSErrors: true,
       })
       
       const page = await browser.newPage()
