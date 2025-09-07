@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import chromium from '@sparticuz/chromium'
-import puppeteer from 'puppeteer-core'
+import puppeteer from 'puppeteer'
 
 export interface ScrapedData {
   title: string
@@ -22,17 +21,22 @@ export async function POST(request: NextRequest) {
     let browser = null
     
     try {
-      // 检测是否在本地开发环境
-      const isLocal = process.env.NODE_ENV === 'development'
+      // 检测是否在Vercel环境
+      const isVercel = process.env.VERCEL === '1'
       
-      // 启动浏览器
+      // 启动浏览器 - 使用简化配置适配Serverless
       browser = await puppeteer.launch({
-        args: isLocal ? [] : chromium.args,
-        defaultViewport: null,
-        executablePath: isLocal 
-          ? undefined // 本地环境使用默认Chrome
-          : await chromium.executablePath(),
         headless: true,
+        args: isVercel ? [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ] : [],
       })
       
       const page = await browser.newPage()
@@ -328,4 +332,4 @@ export async function POST(request: NextRequest) {
 }
 
 // 添加超时配置
-export const maxDuration = 30 // 30秒超时
+export const maxDuration = 60 // 60秒超时
