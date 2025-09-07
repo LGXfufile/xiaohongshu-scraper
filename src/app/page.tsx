@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { ScrapedData } from './api/scrape/route'
 
 interface ApiResponse {
@@ -46,7 +47,7 @@ export default function Home() {
           setNote(result.note)
         }
       }
-    } catch (err) {
+    } catch {
       setError('网络请求失败，请检查连接后重试')
     } finally {
       setLoading(false)
@@ -162,12 +163,14 @@ export default function Home() {
                   
                   {item.thumbnail && (
                     <div className="mb-4 rounded-lg overflow-hidden">
-                      <img 
+                      <Image 
                         src={item.thumbnail} 
                         alt={item.title}
+                        width={300}
+                        height={128}
                         className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
-                          const target = e.target as HTMLImageElement;
+                          const target = e.target as HTMLElement;
                           target.style.display = 'none';
                         }}
                       />

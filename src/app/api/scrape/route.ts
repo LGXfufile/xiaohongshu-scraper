@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
               console.log(`找到搜索框: ${selector}`)
               break
             }
-          } catch (e) {
+          } catch {
             continue
           }
         }
@@ -103,8 +103,8 @@ export async function POST(request: NextRequest) {
       
       // 抓取笔记数据
       console.log('开始抓取笔记数据...')
-      const notes = await page.evaluate(() => {
-        const items: any[] = []
+      const notes = await page.evaluate((): ScrapedData[] => {
+        const items: ScrapedData[] = []
         
         // 尝试多种选择器来找到笔记元素
         const selectors = [
