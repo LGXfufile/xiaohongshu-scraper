@@ -9,6 +9,7 @@ interface ApiResponse {
   total?: number
   keyword?: string
   error?: string
+  note?: string
 }
 
 export default function Home() {
@@ -16,12 +17,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<ScrapedData[]>([])
   const [error, setError] = useState('')
+  const [note, setNote] = useState('')
 
   const handleSearch = async () => {
     if (!keyword.trim()) return
     
     setLoading(true)
     setError('')
+    setNote('')
     setData([])
     
     try {
@@ -39,6 +42,9 @@ export default function Home() {
         setError(result.error)
       } else {
         setData(result.data || [])
+        if (result.note) {
+          setNote(result.note)
+        }
       }
     } catch (err) {
       setError('网络请求失败，请检查连接后重试')
@@ -97,6 +103,18 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* 提示信息 */}
+        {note && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 text-blue-400">ℹ️</div>
+                <p className="text-blue-300">{note}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 错误提示 */}
         {error && (
